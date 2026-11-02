@@ -146,7 +146,7 @@ test("steers an attributed relay message into an idle live session", async () =>
 	assert.deepEqual(message.source, { kind: "agent-message", form: "relay", senderSessionId: "session-a" });
 	assert.match(message.content[0].text, /^Message from session "session-a" \("Sender work"\)\. /);
 	assert.match(message.content[0].text, /not by your user/);
-	assert.match(message.content[0].text, /call session_send_message with session_id "session-a"/);
+	assert.match(message.content[0].text, /call session_send_message with session_id "session-a"; do not reply only to acknowledge it\.\n\n$/);
 	assert.equal(message.content[1].text, "Please rebase.");
 	assert.ok(Object.isFrozen(message) && Object.isFrozen(message.content[0]));
 	assert.deepEqual(h.initiatorFree, [true]);
