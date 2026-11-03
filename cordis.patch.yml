@@ -1,7 +1,8 @@
-# dsh-session-messaging: top-level sessions can message each other.
-#   crossWorkspace   allow listing and messaging sessions in other workspaces (false = same workspace only)
+# dsh-session-messaging: top-level sessions can message each other and open new sessions.
+#   crossWorkspace   allow listing, messaging, and opening sessions in other workspaces (false = same workspace only)
 #   maxMessageBytes  size limit of one relayed message, including its attribution line
 #   listLimit        default number of rows session_list returns (at most 100)
+#   createLimit      new sessions one session may open with session_create per Harness run
 - insert:
     - id: session-messaging
       name: 'dsh-session-messaging'
@@ -9,3 +10,4 @@
         crossWorkspace: true
         maxMessageBytes: 65536
         listLimit: 20
+        createLimit: 10

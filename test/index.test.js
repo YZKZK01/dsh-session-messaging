@@ -1,10 +1,11 @@
 /**
  * Drives `apply()` through a mocked Harness context: tool registration, delivery to live, idle,
- * and stored sessions, every refusal path, listing filters, and the subagent tool restriction.
+ * and stored sessions, opening new sessions, every refusal path, listing filters, and the subagent
+ * tool restriction.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LIST_TOOL, SEND_TOOL, TOOL_NAMES, apply, normalizeConfig, relayContent } from "../lib/index.js";
+import { CREATE_TOOL, LIST_TOOL, SEND_TOOL, TOOL_NAMES, apply, normalizeConfig, relayContent } from "../lib/index.js";
 
 const WORKSPACE = "/work/main";
 
@@ -16,10 +17,10 @@ function makeAgent(id, { cwd = WORKSPACE, status = "idle", origin, title } = {})
 		restrictions: [],
 		session: { id, header: { id, cwd, ...(origin === undefined ? {} : { origin }) }, title },
 		steer(message) {
-			this.received.push({ via: "steer", message });
+			this.received.push({ via: "steer", message, titled: this.session.title });
 		},
 		followup(message) {
-			this.received.push({ via: "followup", message });
+			this.received.push({ via: "followup", message, titled: this.session.title });
 		}
 	};
 	agent.ctx = {
@@ -36,7 +37,7 @@ function makeAgent(id, { cwd = WORKSPACE, status = "idle", origin, title } = {})
 }
 
 /** Minimal stand-in for the Harness services the plugin injects. */
-function harness({ live = [], stored = [], summaries = [], archived = [], titles = {} } = {}) {
+function harness({ live = [], stored = [], summaries = [], archived = [], titles = {}, workspaces = [] } = {}) {
 	const tools = new Map();
 	const listeners = new Map();
 	const disposers = [];
@@ -44,12 +45,29 @@ function harness({ live = [], stored = [], summaries = [], archived = [], titles
 	const resumed = [];
 	const flushed = [];
 	const initiatorFree = [];
+	const createRequests = [];
+	let createFailure;
 	let inWithout = false;
+	const sessionTitle = {
+		get: (session) => (session.title === undefined ? undefined : { title: session.title }),
+		rename(session, title) {
+			session.title = title.trim();
+			return { title: session.title };
+		}
+	};
+	const workspaceRegistry = {
+		archivedSessionIds: archived,
+		// Like the real registry: a missing path rejects, an existing unowned directory is undefined.
+		resolveByPath: async (path) => {
+			if (path.startsWith("/missing")) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+			return workspaces.find((workspace) => workspace.path === path);
+		}
+	};
 	const ctx = {
 		logger: { warn() {} },
 		get(name) {
-			if (name === "sessionTitle") return { get: (session) => (session.title === undefined ? undefined : { title: session.title }) };
-			if (name === "workspaceRegistry") return { archivedSessionIds: archived };
+			if (name === "sessionTitle") return sessionTitle;
+			if (name === "workspaceRegistry") return workspaceRegistry;
 			return undefined;
 		},
 		effect(fn) {
@@ -102,17 +120,28 @@ function harness({ live = [], stored = [], summaries = [], archived = [], titles
 				resumed.push(id);
 				return { agent };
 			},
+			create: async (request) => {
+				createRequests.push({ request, initiatorFree: inWithout });
+				if (createFailure !== undefined) throw createFailure;
+				const workspace = workspaces.find((entry) => entry.id === request.workspaceId);
+				const id = `session-new-${createRequests.length}`;
+				agents.set(id, makeAgent(id, { cwd: workspace.path }));
+				return { sessionId: id };
+			},
 			list: async () => ({ items: summaries })
 		}
 	};
-	return { ctx, tools, listeners, disposers, agents, resumed, flushed, initiatorFree };
+	const failCreate = (error) => {
+		createFailure = error;
+	};
+	return { ctx, tools, listeners, disposers, agents, resumed, flushed, initiatorFree, createRequests, failCreate };
 }
 
 function exec(agent) {
 	return { agent, signal: new AbortController().signal };
 }
 
-test("registers both tools with the supported schema subset", () => {
+test("registers every tool with the supported schema subset", () => {
 	const h = harness();
 	apply(h.ctx, {});
 	assert.deepEqual([...h.tools.keys()].sort(), [...TOOL_NAMES].sort());
@@ -265,7 +294,100 @@ test("lists messageable sessions in this workspace by default", async () => {
 	await assert.rejects(closed.tools.get(LIST_TOOL).execute({ all_workspaces: true }, exec(caller)), /crossWorkspace: false/);
 });
 
-test("hides both tools from subagents, including ones live before activation", () => {
+const WORKSPACES = [
+	{ id: "ws-main", path: WORKSPACE },
+	{ id: "ws-other", path: "/work/other" }
+];
+
+test("opens a titled session in this workspace and starts it with an attributed message", async () => {
+	const creator = makeAgent("session-a", { title: "Planner" });
+	const h = harness({ live: [creator], workspaces: WORKSPACES });
+	apply(h.ctx, {});
+	const value = await h.tools.get(CREATE_TOOL).execute({ title: "  Write release notes ", message: "Draft notes for v2." }, exec(creator));
+	assert.deepEqual(h.createRequests, [{ request: { workspaceId: "ws-main" }, initiatorFree: true }]);
+	assert.deepEqual(h.initiatorFree, [true]);
+	assert.equal(value.sessionId, "session-new-1");
+	assert.equal(value.title, "Write release notes");
+	assert.equal(value.workspace, WORKSPACE);
+	const opened = h.agents.get("session-new-1");
+	assert.equal(opened.received.length, 1);
+	const { via, message, titled } = opened.received[0];
+	assert.equal(via, "followup");
+	assert.equal(titled, "Write release notes", "the title is set before the first turn starts");
+	assert.equal(message.id, value.messageId);
+	assert.deepEqual(message.source, { kind: "agent-message", form: "relay", senderSessionId: "session-a" });
+	assert.match(message.content[0].text, /^Message from session "session-a" \("Planner"\)\. .*\n\n$/s);
+	assert.equal(message.content[1].text, "Draft notes for v2.");
+	assert.deepEqual(h.flushed, ["session-new-1"]);
+	assert.equal(
+		h.tools.get(CREATE_TOOL).output.render({}, value)[0].text,
+		'Opened session session-new-1 ("Write release notes") in workspace /work/main. It is starting a turn with your message.'
+	);
+});
+
+test("opens a session in another registered workspace and names the creator's workspace", async () => {
+	const creator = makeAgent("session-a");
+	const h = harness({ live: [creator], workspaces: WORKSPACES });
+	apply(h.ctx, {});
+	const value = await h.tools.get(CREATE_TOOL).execute({ title: "Other", message: "hi", workspace: "/work/other" }, exec(creator));
+	assert.equal(value.workspace, "/work/other");
+	assert.deepEqual(h.createRequests.map((entry) => entry.request), [{ workspaceId: "ws-other" }]);
+	const { message } = h.agents.get(value.sessionId).received[0];
+	assert.match(message.content[0].text, /^Message from session "session-a" in workspace \/work\/main\. /);
+});
+
+test("refuses to open a session without a title, a message, or a registered workspace", async () => {
+	const creator = makeAgent("session-a");
+	const child = makeAgent("session-child", { origin: "subagent" });
+	const stray = makeAgent("session-stray", { cwd: "/tmp/unregistered" });
+	const h = harness({ live: [creator, child, stray], workspaces: WORKSPACES });
+	apply(h.ctx, { maxMessageBytes: 300 });
+	const create = (args, caller = creator) => h.tools.get(CREATE_TOOL).execute(args, exec(caller));
+	await assert.rejects(create({ title: "  ", message: "x" }), /title must contain/);
+	await assert.rejects(create({ title: "t", message: "" }), /message must contain/);
+	await assert.rejects(create({ title: "t", message: "x", workspace: "work/main" }), /absolute directory path/);
+	await assert.rejects(create({ title: "t", message: "x", workspace: "/missing/dir" }), /not a registered workspace/);
+	await assert.rejects(create({ title: "t", message: "x", workspace: "/work/unowned" }), /not a registered workspace/);
+	await assert.rejects(create({ title: "t", message: "x".repeat(400) }), /over the 300-byte limit/);
+	await assert.rejects(create({ title: "t", message: "x" }, child), /only available to top-level sessions/);
+	await assert.rejects(create({ title: "t", message: "x" }, stray), /not in a registered workspace/);
+	assert.deepEqual(h.createRequests, []);
+
+	const closed = harness({ live: [creator], workspaces: WORKSPACES });
+	apply(closed.ctx, { crossWorkspace: false });
+	await assert.rejects(
+		closed.tools.get(CREATE_TOOL).execute({ title: "t", message: "x", workspace: "/work/other" }, exec(creator)),
+		/crossWorkspace: false/
+	);
+	assert.deepEqual(closed.createRequests, []);
+});
+
+test("stops at createLimit, and a failed creation gives its slot back", async () => {
+	const creator = makeAgent("session-a");
+	const h = harness({ live: [creator], workspaces: WORKSPACES });
+	apply(h.ctx, { createLimit: 2 });
+	const create = () => h.tools.get(CREATE_TOOL).execute({ title: "t", message: "x" }, exec(creator));
+	h.failCreate(new Error("disk full"));
+	await assert.rejects(create(), /^Error: session not opened: disk full$/);
+	h.failCreate(undefined);
+	await create();
+	await create();
+	await assert.rejects(create(), /limit of 2 new sessions per Harness run/);
+	assert.equal(h.createRequests.length, 3);
+});
+
+test("reports a session that opened but could not take its message", async () => {
+	const creator = makeAgent("session-a");
+	const h = harness({ live: [creator], workspaces: WORKSPACES });
+	h.ctx.sessionController.resolveAgent = async () => ({ error: { code: "session/agent-busy", message: "agent busy" } });
+	apply(h.ctx, {});
+	await assert.rejects(
+		h.tools.get(CREATE_TOOL).execute({ title: "t", message: "x" }, exec(creator)),
+		/session session-new-1 was opened but did not receive the message: agent busy/
+	);
+});
+
+test("hides the tools from subagents, including ones live before activation", () => {
 	const early = makeAgent("session-early-child", { origin: "subagent" });
 	const root = makeAgent("session-root");
 	const h = harness({ live: [early, root] });
@@ -284,11 +406,12 @@ test("hides both tools from subagents, including ones live before activation", (
 });
 
 test("normalizes config and builds attribution text", () => {
-	assert.deepEqual(normalizeConfig(undefined), { crossWorkspace: true, maxMessageBytes: 65536, listLimit: 20 });
-	assert.deepEqual(normalizeConfig({ crossWorkspace: false, maxMessageBytes: -1, listLimit: 500 }), {
+	assert.deepEqual(normalizeConfig(undefined), { crossWorkspace: true, maxMessageBytes: 65536, listLimit: 20, createLimit: 10 });
+	assert.deepEqual(normalizeConfig({ crossWorkspace: false, maxMessageBytes: -1, listLimit: 500, createLimit: 0 }), {
 		crossWorkspace: false,
 		maxMessageBytes: 65536,
-		listLimit: 100
+		listLimit: 100,
+		createLimit: 10
 	});
 	const [head, body] = relayContent({ id: 'say "hi"', title: 'a "b"' }, "text");
 	assert.equal(head.text.startsWith('Message from session "say \\"hi\\"" ("a \\"b\\""). '), true);

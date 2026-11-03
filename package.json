@@ -1,7 +1,7 @@
 {
   "name": "dsh-session-messaging",
-  "description": "Lets one top-level DSH session send messages to another: session_list finds sessions, session_send_message delivers an attributed message that wakes or resumes the target, and the recipient can reply the same way",
-  "version": "0.1.0",
+  "description": "Lets one top-level DSH session message another or open a new one: session_list finds sessions, session_send_message delivers an attributed message that wakes or resumes the target, session_create opens a titled session that starts with a message, and recipients can reply the same way",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
