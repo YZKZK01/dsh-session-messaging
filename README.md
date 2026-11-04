@@ -1,39 +1,177 @@
+<div align="center">
+
+<img src="icon.svg" width="88" alt="">
+
 # dsh-session-messaging
 
-DeepSeek Harness 本地插件：让两个互不相关的顶层会话（侧栏里的对话）可以互相发消息。DSH 自带的消息通道都要求有授权关系——`send_message` 只能在直接父子 agent 之间传递（`ctx.subagents` 的 “exact adjacency”），Agent Teams 只能在同一个 Team 的成员之间传递——所以两个普通会话之间没有路可走。本插件补上这条通道：`session_list` 查找可发送的会话，`session_send_message` 通过 `sessionController.resolveAgent`（与网页端发送 prompt 相同的路径，必要时从存储冷恢复会话）把消息 steer 或排队投递给目标会话。消息带有 DSH 内置的转发来源标记 `{ kind: 'agent-message', form: 'relay', senderSessionId }`，写入目标会话日志；网页端在目标会话里显示为用户侧气泡，气泡上方标注“来自会话「标题」”；接收方可以用同一个工具回复。`session_create` 还能直接新开一个顶层会话：走 `sessionController.create`（与网页端“新对话”相同的路径），设好侧栏标题，再用同样的转发消息开始它的第一轮。
+**让会话之间互相发消息** —— 一个会话可以找到另一个会话、给它发消息，或者新开一个会话交代任务；对方用同样的方式回复。
 
-- `lib/index.js`（Host）：
-  - `session_send_message({ session_id, message, delivery? })`：`delivery: "steer"`（默认）在目标的下一步送达，运行中的会话也会立即看到；`"queue"` 等目标当前这一轮结束后再开新一轮。空闲会话立即开始新一轮，已存储（未加载）的会话会先恢复。返回投递确认（`messageId`），不返回对方的回答；回答会以新消息的形式回到发送方会话。
-  - `session_list({ query?, all_workspaces?, limit? })`：按最近活跃排序列出可发送的顶层会话（id、`running`/`inactive`、标题），默认只列当前工作区，`all_workspaces: true` 列出全部工作区。自动排除自身、空白会话、子 agent 会话和已归档会话。
-  - `session_create({ title, message, workspace? })`：在已注册的工作区（默认是当前会话所在工作区；`workspace` 填 `session_list` 显示的绝对路径）新开一个顶层会话，先设标题（转发消息不会触发 DSH 的自动起标题），再用 `message` 开始第一轮。新会话独立运行、看不到发起方的对话，只有在消息里要求它用 `session_send_message` 回复时才会回报。返回新会话 id。
-  - 消息开头会附一行来源说明：发送方会话 id、标题（工作区不同时附上工作区路径），注明“由对方会话的 agent 撰写，不是你的用户”，并提示用 `session_send_message` 回复、不要只为确认收到而回复（防止两个会话互相客套刷屏）。来源说明以空行结尾：相邻的文本块到模型那里会直接拼接在一起。
-  - 拒绝的情况：发给自己、会话不存在、目标是子 agent 会话（应由其父会话用 `send_message`）、目标已归档、超过大小上限、`crossWorkspace: false` 时跨工作区；`session_create` 还会拒绝空标题、相对路径或未注册的工作区，以及超过 `createLimit` 的次数。子 agent 会话本身看不到这三个工具（在 `agent/created` 时对其 `agent.ctx.tools.restrict({ deny })`），因为它们无法通过这条通道收到回复。
-- `lib/client.js`（浏览器）：覆盖 Chat 的 `turn-trigger` 节点渲染器。本插件转发的消息画成与用户消息相同的气泡（复用 DSH 自带的 `conversation.chat.user.content`），上方标注发送方会话，正文里不显示来源说明；目标任务、定时任务、子 agent 等其他触发消息仍交给 DSH 自带的卡片。只改显示：模型收到的内容（含来源说明）不变，历史消息也按新样式显示。
-- `cordis.patch.yml`：插件行与默认配置（`crossWorkspace: true`、`maxMessageBytes: 65536`、`listLimit: 20`、`createLimit: 10`）。
-- `locale/*.json`、`icon.svg`：插件管理页显示的名称、描述和图标。
-- `test/client.test.js`：确认浏览器端能解析 `relayContent` 写出的来源说明（两边改动不同步会在这里失败），以及非转发消息交还给 DSH 自带渲染器。
-- `test/index.test.js`：用模拟的 Harness 上下文测试投递、新开会话、各种拒绝路径、列表过滤和子 agent 工具隐藏（`npm test` / `node --test test/*.test.js`）。
+<img src="https://img.shields.io/badge/DeepSeek_Harness-社区插件-4d6bfe?style=flat-square" alt="DeepSeek Harness 社区插件">
+<img src="https://img.shields.io/badge/新增工具-3_个-4d6bfe?style=flat-square" alt="新增 3 个工具">
+<img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT 许可证">
+
+**中文** · [English](README.en.md)
+
+[功能](#功能) · [安装](#安装) · [用法](#用法) · [设置](#设置) · [工作原理](#工作原理) · [已知限制](#已知限制)
+
+</div>
+
+<br>
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 社区插件。DSH 自带的消息通道都要求双方有关系：`send_message` 只在直接父子 agent 之间传递，Agent Teams 只在同一个 Team 的成员之间传递，侧栏里两个普通会话之间没有路。装上本插件后，每个顶层会话多了三个工具：找会话、发消息、开新会话。收到的消息会标明来自哪个会话，对方可以用同一个工具回复。
+
+<p align="center">
+  <img src="docs/demo.gif" width="932" alt="会话「整理发布说明」让 agent 去问会话「修复登录超时」；对方收到一条标着「来自会话「整理发布说明」」的消息，用同一个工具回复，回复回到原会话">
+</p>
+
+<p align="center"><sub>「整理发布说明」里的 agent 用 <code>session_list</code> 找到「修复登录超时」，用 <code>session_send_message</code> 发出问题。对方被唤醒并回复，回复又唤醒了原会话。</sub></p>
+
+## 功能
+
+- 🔎 **找会话** — `session_list` 按最近活跃列出可以发消息的会话：id、运行中 / 空闲、标题。默认只看当前工作区，也可以列出全部工作区或按标题搜索。
+- ✉️ **发消息** — `session_send_message` 把消息送到另一个会话：正在运行的会话在下一步读到，空闲的会话立即开始新一轮，已存储（未加载）的会话先恢复再处理。
+- 🆕 **开新会话** — `session_create` 在侧栏新开一个带标题的会话，用你的消息开始第一轮。新会话独立干活，看不到发起方的对话；消息里让它回报，它就会回报。
+- 🏷️ **标明来源** — 收到的消息显示为用户侧气泡，上方写着「来自会话「标题」」。模型看到的是一行来源说明：哪个会话、由对方的 agent 而不是用户撰写、怎么回复。
+- 🔁 **不会互相客套** — 来源说明提醒对方不要只为确认收到而回复，两个会话不会来回说「收到」「好的」停不下来。
+- 🛡️ **有边界** — 不能发给自己、子 agent 会话或已归档的会话；单条消息上限 64 KB；每个会话每次运行最多开 10 个新会话；子 agent 看不到这三个工具。
 
 ## 安装
 
-```sh
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add link:$HOME/.dsh/local-plugins/dsh-session-messaging
+**需要**：DeepSeek Harness（已在 macOS 版 0.2.1-rc.5 上测试）。插件本身不调用模型，不需要额外的 API key。
+
+在 Harness 的「插件」页点 **添加插件**，填入下面的地址。装好后即可使用；如果聊天里的气泡样式没出现，刷新页面或重启 DeepSeek Harness。
+
+```
+https://github.com/tonyzdev/dsh-session-messaging
 ```
 
-移除：在 DSH「插件」页移除该 bundle，或运行：
+<details>
+<summary><b>用命令行安装或移除</b></summary>
+
+<br>
+
+先完全退出 DeepSeek Harness，再运行（这是 macOS 上 `dsh` 的路径）：
 
 ```sh
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop remove dsh-session-messaging
+DSH="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
+"$DSH" plugin --profile desktop add github:tonyzdev/dsh-session-messaging
 ```
+
+想改代码时，克隆到本地并以链接方式安装，改动直接作用于这份副本：
+
+```sh
+git clone https://github.com/tonyzdev/dsh-session-messaging ~/.dsh/local-plugins/dsh-session-messaging
+"$DSH" plugin --profile desktop add link:$HOME/.dsh/local-plugins/dsh-session-messaging
+```
+
+移除：在「插件」页卸载，或退出 Harness 后运行：
+
+```sh
+"$DSH" plugin --profile desktop remove dsh-session-messaging
+```
+
+</details>
+
+## 用法
+
+不用记工具名，直接告诉 agent 要做什么：
+
+> 问问「修复登录超时」那个会话：bug 修好了吗？改了什么？
+>
+> 告诉「前端重构」那个会话：接口字段 `user_id` 改名为 `uid` 了。
+>
+> 开一个新会话，让它把这条修复写进 CHANGELOG.md，写完告诉我。
+
+<p align="center">
+  <img src="docs/create.gif" width="932" alt="会话「整理发布说明」用 session_create 新开会话「写 CHANGELOG 登录超时修复」；新会话写好 CHANGELOG.md 后回报「已写入」，原会话收到结果">
+  <br>
+  <sub>新开的会话出现在侧栏，带着任务开工；写完后用 <code>session_send_message</code> 回报，原会话收到结果。</sub>
+</p>
+
+| 工具 | 参数 | 作用 |
+| --- | --- | --- |
+| `session_list` | `query?` `all_workspaces?` `limit?` | 按最近活跃列出可以发消息的顶层会话 |
+| `session_send_message` | `session_id` `message` `delivery?` | 发消息；`delivery: "queue"` 等对方这一轮结束后再开新一轮 |
+| `session_create` | `title` `message` `workspace?` | 新开会话并用消息开始第一轮；`workspace` 填 `session_list` 显示的绝对路径 |
+
+工具只返回送达确认，不返回对方的回答；回答会作为一条新消息回到发送方会话。
+
+## 设置
+
+| 字段 | 默认值 | 说明 |
+| --- | :---: | --- |
+| `crossWorkspace` | `true` | 是否允许列出其他工作区的会话、给它们发消息、在其他工作区新开会话；`false` 只限当前工作区 |
+| `maxMessageBytes` | `65536` | 单条消息的大小上限，包括来源说明 |
+| `listLimit` | `20` | `session_list` 默认返回的条数，最多 100 |
+| `createLimit` | `10` | 一个会话在一次运行内最多新开的会话数 |
+
+> [!TIP]
+> 要改的话，在 profile 的补丁文件（桌面版是 `~/.dsh/profiles/desktop/cordis.patch.yml`）里加一行，只写要改的字段，没写的用默认值：
+>
+> ```yaml
+> - id: session-messaging
+>   config:
+>     crossWorkspace: false
+> ```
+>
+> 保存后生效；如果没有生效，重启 DeepSeek Harness。
+
+## 工作原理
+
+```mermaid
+sequenceDiagram
+    participant A as 会话 A
+    participant P as 本插件
+    participant B as 会话 B
+    A->>P: session_send_message(B, 问题)
+    P->>B: 转发消息，标明来自会话 A
+    Note over B: 运行中：下一步读到<br/>空闲：开始新一轮<br/>已存储：先恢复
+    B->>P: session_send_message(A, 回复)
+    P->>A: 转发消息，标明来自会话 B
+```
+
+<p align="center"><sub>转发的消息写进对方的会话日志；模型看到来源说明，界面显示带来源标注的气泡。</sub></p>
+
+| 文件 | 位置 | 作用 |
+| --- | :---: | --- |
+| `lib/index.js` | Host | 三个工具、消息转发、对子 agent 隐藏工具 |
+| `lib/client.js` | 浏览器 | 把转发的消息画成用户侧气泡，并标注来源会话 |
+| `cordis.patch.yml` | 补丁 | 插件行和默认配置 |
+| `locale/*.json`、`icon.svg` | 元数据 | 「插件」页显示的名称、描述和图标 |
+
+<details>
+<summary><b>实现细节</b></summary>
+
+<br>
+
+- 发消息走 `sessionController.resolveAgent`，与网页端发送 prompt 是同一条路径，必要时从存储冷恢复会话。消息带 DSH 内置的转发来源 `{ kind: 'agent-message', form: 'relay', senderSessionId }`，写进对方的会话日志。
+- 开新会话走 `sessionController.create({ workspaceId })`，也就是网页端「新对话」的路径；在第一轮开始前先改好标题，因为转发的消息不会触发 DSH 的自动起标题。
+- 两者都在 `withoutInitiator` 里执行：对方是独立的顶层会话，不算发送方这一轮发起的子任务。
+- 来源说明以空行结尾，因为相邻的文本块到模型那里会直接拼接在一起。
+- 子 agent 在 `agent/created` 时通过 `agent.ctx.tools.restrict({ deny })` 隐藏这三个工具：它们无法通过这条通道收到回复。
+- 浏览器端覆盖 Chat 的 `turn-trigger` 渲染器，只接管本插件转发的消息，复用 DSH 自带的 `conversation.chat.user.content` 气泡；目标、定时任务、子 agent 等其他触发消息仍用 DSH 自带的卡片。只改显示，模型收到的内容不变。
+
+</details>
 
 ## 已知限制
 
-- 气泡只出现在“唤醒会话”的消息上。会话正在运行时用 `steer` 送达的消息属于 DSH 的 `context` 节点，DSH 不在对话里显示它（模型能收到），本插件也没有改变这一点。
-- 气泡不折叠，很长的交接消息会占很长一屏。
-- 修改 `lib/client.js` 或 `package.json` 的 `dsh.client` 后，需要 `remove_bundle` 再 `install_bundle`，并刷新页面（⌘R）。
-- 只在顶层会话之间通信；子 agent / Team 成员仍走 DSH 自带的 `send_message`。
-- 成功只代表目标收件箱已接受消息，不代表对方已处理；与 DSH 的 Team 消息一样，没有重试、去重或“已读”回执。
-- 被唤醒的会话按它自己的权限模式运行；如果它需要审批，审批请求出现在那个会话里，可能没人在看。`session_create` 新开的会话使用默认模型、默认 preset 和默认审批策略（实测为 `ask`），不继承发起会话的设置。
-- `session_create` 设的标题与用户手动改名一样会被“钉住”，之后 DSH 不会再自动改标题。
-- 没有频率限制：防止两个会话来回回复靠的是来源说明里的提示，而不是硬性上限。`createLimit` 只限制单个会话在一次运行内新开的数量（存在内存里，插件重载或重启后清零），不限制“A 开 B、B 再开 C”这样的链条。
-- 修改 `lib/index.js` 后，单纯保存文件不会重新加载 Host 代码；在 DSH「插件」页把本 bundle 再启用一次（或调用 `plugin_manager` 的 `set_bundle`，`enabled: true`）会触发重新组合，加载磁盘上的新代码，无需重启（实测：`session_create` 由此直接上线）。
+> [!CAUTION]
+> **被唤醒或新开的会话按它自己的设置运行。** 新开的会话使用默认模型和默认审批策略（实测为 `ask`），不继承发起会话的设置。它如果需要审批，审批请求会停在那个会话里，可能没人在看。
+
+- 只在顶层会话之间通信；子 agent 和 Team 成员仍用 DSH 自带的 `send_message`。
+- 「送达」只代表对方的收件箱接受了消息，不代表已经处理；没有重试、去重或已读回执。
+- 对方正在运行时收到的消息会并入它这一轮，模型能收到，但不会显示成气泡。只有唤醒会话的消息显示为气泡。
+- 气泡里不渲染 Markdown，也不折叠很长的消息。
+- 发消息没有频率限制，防止来回客套靠的是来源说明里的提示。`createLimit` 存在内存里，插件重新加载或重启后清零，也不限制「A 开 B、B 再开 C」这样的链条。
+- `session_create` 设的标题像手动改名一样被固定，DSH 之后不会再自动改标题。
+
+## 开发
+
+```sh
+node --test test/*.test.js
+```
+
+测试用模拟的 Harness 上下文覆盖投递、开新会话、各种拒绝路径、列表过滤、对子 agent 隐藏工具，以及浏览器端能否解析 Host 写出的来源说明（两边改动不同步会在这里失败）。
+
+> [!NOTE]
+> 修改 `lib/index.js` 后，在「插件」页把本插件关掉再打开即可加载新代码，不用重启；修改 `lib/client.js` 后需要重新安装并刷新页面。
