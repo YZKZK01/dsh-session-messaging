@@ -7,6 +7,7 @@
 **让会话之间互相发消息** —— 一个会话可以找到另一个会话、给它发消息，或者新开一个会话交代任务；对方用同样的方式回复。
 
 <img src="https://img.shields.io/badge/DeepSeek_Harness-社区插件-4d6bfe?style=flat-square" alt="DeepSeek Harness 社区插件">
+<img src="https://img.shields.io/badge/DSH-0.2.0%2B-4d6bfe?style=flat-square" alt="支持 DSH 0.2.0+">
 <img src="https://img.shields.io/badge/新增工具-3_个-4d6bfe?style=flat-square" alt="新增 3 个工具">
 <img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT 许可证">
 
@@ -37,37 +38,72 @@
 
 ## 安装
 
-**需要**：DeepSeek Harness（已在 macOS 版 0.2.1-rc.5 上测试）。插件本身不调用模型，不需要额外的 API key。
+**需要**：DeepSeek Harness `0.2.0+`（已在 macOS 版 `0.2.1-rc.5` 上实测）。插件本身不调用模型，不需要额外的 API key。
 
-在 Harness 的「插件」页点 **添加插件**，填入下面的地址。装好后即可使用；如果聊天里的气泡样式没出现，刷新页面或重启 DeepSeek Harness。
+### 方式一：发一句话让 DSH 自己安装（推荐）
 
+把下面这句话直接复制发给任意 DSH 会话，agent 会自动识别桌面端或网页端完成安装并热加载：
+
+```text
+请帮我在当前 DSH profile 安装插件 https://github.com/tonyzdev/dsh-session-messaging：若有 plugin_manager 工具请直接调用 install_bundle 安装并启用；否则读取当前 profile 名（bash 为 $DSH_PROFILE，PowerShell 为 $env:DSH_PROFILE；为 desktop 时调用 app.asar 同级 runtime/cli/bin 下的 dsh 或 dsh.cmd，其他情况用 PATH 中的 dsh，受沙箱限制时申请全盘权限审批）执行 dsh plugin --profile <profile> add github:tonyzdev/dsh-session-messaging，不要手改配置文件或重启宿主。
 ```
+
+### 方式二：在「插件」页手动安装
+
+在 Harness 侧栏打开 **插件 → 添加插件**，填入下面的仓库地址，点击 **安装** 后再点 **立即启用** 即可使用（若聊天里的转发气泡样式尚未出现，按 `⌘R` / `Ctrl+R` 刷新页面）：
+
+```text
 https://github.com/tonyzdev/dsh-session-messaging
 ```
 
+> [!IMPORTANT]
+> 安装时请填入上面的完整 GitHub 仓库地址，**不要**输入不带前缀的 `dsh-session-messaging`（npm 上同名无前缀包由其他作者维护；本插件安装后的包名为 `@tonyzdev/dsh-session-messaging`）。
+
 <details>
-<summary><b>用命令行安装或移除</b></summary>
+<summary><b>用命令行安装、离线包安装或移除</b></summary>
 
 <br>
 
-先完全退出 DeepSeek Harness，再运行（这是 macOS 上 `dsh` 的路径）：
+**网页端（`dsh web`）**：
+
+```sh
+dsh plugin --profile web add github:tonyzdev/dsh-session-messaging
+```
+
+**桌面端（DSH Desktop，支持在应用运行时首次热装）**：
+
+macOS：
 
 ```sh
 DSH="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
 "$DSH" plugin --profile desktop add github:tonyzdev/dsh-session-messaging
 ```
 
-想改代码时，克隆到本地并以链接方式安装，改动直接作用于这份副本：
+Windows（PowerShell）：
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add github:tonyzdev/dsh-session-messaging
+```
+
+> 注意：在装有 DSH Desktop 的电脑上如果运行 `--profile web`，插件只会装进 `profiles/web`，不会出现在桌面端界面里；桌面端请使用上面的内置 CLI 指向 `--profile desktop`，或直接在界面「插件 → 添加插件」中安装。
+
+**预打包 Release `.tgz` 直装（无需拉取完整 Git 仓库）**：
+
+```sh
+dsh plugin --profile web add https://github.com/tonyzdev/dsh-session-messaging/releases/download/v0.3.2/tonyzdev-dsh-session-messaging-0.3.2.tgz
+```
+
+**本地开发（以链接方式安装，改代码直接作用于该副本）**：
 
 ```sh
 git clone https://github.com/tonyzdev/dsh-session-messaging ~/.dsh/local-plugins/dsh-session-messaging
 "$DSH" plugin --profile desktop add link:$HOME/.dsh/local-plugins/dsh-session-messaging
 ```
 
-移除：在「插件」页卸载，或退出 Harness 后运行：
+**移除**：在「插件」页卸载，或运行：
 
 ```sh
-"$DSH" plugin --profile desktop remove dsh-session-messaging
+"$DSH" plugin --profile desktop remove @tonyzdev/dsh-session-messaging
 ```
 
 </details>

@@ -4,6 +4,7 @@
  * attribution line in the bubble.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { relayContent } from "../lib/index.js";
 
@@ -11,16 +12,25 @@ const reactStub = {
 	createElement: (type, props, ...children) => ({ type, props, children }),
 	useMemo: (compute) => compute()
 };
+let loadedId;
 let plugin;
 globalThis.window = {
 	__ModuleLoader__: {
-		load: ({ factory }) => {
+		load: ({ id, factory }) => {
+			loadedId = id;
 			plugin = factory(() => reactStub);
 		}
 	}
 };
 await import("../lib/client.js");
 const { parseRelay } = plugin;
+
+test("client module id and cordis.patch.yml name stay in sync with package.json name", () => {
+	const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+	const patch = readFileSync(new URL("../cordis.patch.yml", import.meta.url), "utf8");
+	assert.equal(loadedId, pkg.name);
+	assert.match(patch, new RegExp(`name:\\s*['"]?${pkg.name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}['"]?`));
+});
 
 /** The renderer `apply` registers, beside a shipped entry for the same key. */
 function registeredRenderer(shipped) {

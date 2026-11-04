@@ -1,8 +1,10 @@
 {
-  "name": "dsh-session-messaging",
+  "name": "@tonyzdev/dsh-session-messaging",
   "description": "Lets one top-level DSH session message another or open a new one: session_list finds sessions, session_send_message delivers an attributed message that wakes or resumes the target, session_create opens a titled session that starts with a message, and recipients can reply the same way",
-  "version": "0.3.1",
-  "private": true,
+  "version": "0.3.2",
+  "author": "tonyzdev",
+  "license": "MIT",
+  "icon": "./icon.svg",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -36,5 +38,28 @@
       ]
     }
   },
-  "license": "MIT"
+  "engines": {
+    "dsh": ">=0.2.0-rc.1 <0.3.0-0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "session-messaging",
+    "cross-session",
+    "multi-agent",
+    "agent-collaboration"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tonyzdev/dsh-session-messaging.git"
+  },
+  "homepage": "https://github.com/tonyzdev/dsh-session-messaging#readme",
+  "bugs": {
+    "url": "https://github.com/tonyzdev/dsh-session-messaging/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

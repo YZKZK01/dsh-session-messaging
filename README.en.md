@@ -7,6 +7,7 @@
 **Let sessions message each other** — one session can find another, send it a message, or open a new session with a task; the other side replies the same way.
 
 <img src="https://img.shields.io/badge/DeepSeek_Harness-community_plugin-4d6bfe?style=flat-square" alt="DeepSeek Harness community plugin">
+<img src="https://img.shields.io/badge/DSH-0.2.0%2B-4d6bfe?style=flat-square" alt="DSH 0.2.0+">
 <img src="https://img.shields.io/badge/new_tools-3-4d6bfe?style=flat-square" alt="3 new tools">
 <img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT license">
 
@@ -37,37 +38,72 @@ A community plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 
 ## Installation
 
-**Requirements:** DeepSeek Harness (tested with 0.2.1-rc.5 on macOS). The plugin itself calls no model, so it needs no extra API key.
+**Requirements:** DeepSeek Harness `0.2.0+` (tested with `0.2.1-rc.5` on macOS). The plugin itself calls no model, so it needs no extra API key.
 
-On the Harness Plugins page, click **Add plugin** and enter the address below. It works right after installing; if the bubble style doesn't appear in chats, refresh the page or restart DeepSeek Harness.
+### Option 1: Paste one sentence to DSH (self-install)
 
+Paste this sentence into any DeepSeek Harness chat — the agent detects Desktop vs Web automatically, installs the plugin into your active profile, and mounts it live:
+
+```text
+Install the plugin https://github.com/tonyzdev/dsh-session-messaging into my current DSH profile: if `plugin_manager` is available, call `install_bundle` to install and enable it; otherwise read the active profile (`$DSH_PROFILE` in bash, `$env:DSH_PROFILE` in PowerShell), use Desktop's bundled CLI (`runtime/cli/bin/dsh` or `dsh.cmd` next to `app.asar`) when the profile is `desktop` or `dsh` on PATH otherwise (requesting sandbox approval if needed), and run `dsh plugin --profile <profile> add github:tonyzdev/dsh-session-messaging` — do not hand-edit profile files or restart the host.
 ```
+
+### Option 2: Install in the GUI
+
+Open **Plugins → Add plugin** in the Harness sidebar, enter the repository URL below, click **Install**, and click **Enable now** (refresh the page with `⌘R` / `Ctrl+R` if relayed message bubbles don't style immediately):
+
+```text
 https://github.com/tonyzdev/dsh-session-messaging
 ```
 
+> [!IMPORTANT]
+> Install using the full GitHub URL above — do **not** enter bare `dsh-session-messaging` (an unrelated package by another author holds that unscoped name on npm; this plugin's installed bundle name is `@tonyzdev/dsh-session-messaging`).
+
 <details>
-<summary><b>Installing or removing from the command line</b></summary>
+<summary><b>Command-line install, prebuilt tarball, or removal</b></summary>
 
 <br>
 
-Fully quit DeepSeek Harness first, then run (this is the `dsh` path on macOS):
+**Web (`dsh web`):**
+
+```sh
+dsh plugin --profile web add github:tonyzdev/dsh-session-messaging
+```
+
+**Desktop (`DSH Desktop`, hot-loads fresh installs even while the app is open):**
+
+macOS:
 
 ```sh
 DSH="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
 "$DSH" plugin --profile desktop add github:tonyzdev/dsh-session-messaging
 ```
 
-To work on the code, clone it and install it as a link, so your edits apply to that copy directly:
+Windows (PowerShell):
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add github:tonyzdev/dsh-session-messaging
+```
+
+> Note: On a machine with DSH Desktop, running `--profile web` installs into `profiles/web`, **not** the Desktop app. Use Desktop's bundled CLI with `--profile desktop` above, or **Plugins → Add plugin** inside the app.
+
+**Prebuilt GitHub Release `.tgz` (no full git clone):**
+
+```sh
+dsh plugin --profile web add https://github.com/tonyzdev/dsh-session-messaging/releases/download/v0.3.2/tonyzdev-dsh-session-messaging-0.3.2.tgz
+```
+
+**Local development (install as a link so edits apply directly):**
 
 ```sh
 git clone https://github.com/tonyzdev/dsh-session-messaging ~/.dsh/local-plugins/dsh-session-messaging
 "$DSH" plugin --profile desktop add link:$HOME/.dsh/local-plugins/dsh-session-messaging
 ```
 
-To remove it, uninstall it on the Plugins page, or quit Harness and run:
+**Removing:** uninstall it on the Plugins page, or run:
 
 ```sh
-"$DSH" plugin --profile desktop remove dsh-session-messaging
+"$DSH" plugin --profile desktop remove @tonyzdev/dsh-session-messaging
 ```
 
 </details>
