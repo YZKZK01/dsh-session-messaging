@@ -157,6 +157,21 @@ test("registers every tool with the supported schema subset", () => {
 	}
 });
 
+test("the send card names a loaded target by its title and a stored one by its id", () => {
+	const target = makeAgent("session-b", { title: "Fix login timeout" });
+	const h = harness({ live: [target] });
+	apply(h.ctx, {});
+	const present = h.tools.get(SEND_TOOL).presentCall;
+	assert.deepEqual(present({ session_id: "session-b", message: "hi" }), {
+		card: "generic",
+		kind: "other",
+		title: 'Message session "Fix login timeout"',
+		rawInput: "hi"
+	});
+	assert.equal(present({ session_id: "session-stored" }).title, "Message session session-stored");
+	assert.equal(present({}).title, "Message session");
+});
+
 test("steers an attributed relay message into an idle live session", async () => {
 	const sender = makeAgent("session-a", { title: "Sender work" });
 	const target = makeAgent("session-b", { title: "Target work" });
