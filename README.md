@@ -1,12 +1,9 @@
-> **本仓库 / 本包是 YZKZK01 维护的发布分支**，基于
-> [tonyzdev/dsh-session-messaging](https://github.com/tonyzdev/dsh-session-messaging) **v0.3.2**（MIT，作者 tonyzdev）。
+> **本包是自维护发布分支**：基于 [tonyzdev/dsh-session-messaging](https://github.com/tonyzdev/dsh-session-messaging)
+> **v0.3.2（MIT，作者 tonyzdev）**，代码作为起点；版本号自成一条线（`0.1.0` 起），不延续上游编号。
 >
-> - 包名改为 `@you/dsh-session-messaging`，可以在插件页**填包名直接安装**；
-> - **代码逻辑与上游 v0.3.2 一致**，本次没有功能改动（只改包名、仓库地址、文档）；
-> - 兼容性与实测记录见 [COMPATIBILITY.md](./COMPATIBILITY.md)。
->
-> Fork of [tonyzdev/dsh-session-messaging](https://github.com/tonyzdev/dsh-session-messaging) v0.3.2 (MIT).
-> Renamed only, so it can be installed by package name; behaviour is unchanged.
+> - 包名 `@zlzlk/dsh-session-messaging`，可在插件页填包名直接安装；
+> - 与上游 v0.3.2 的差异见 [COMPATIBILITY.md](./COMPATIBILITY.md) 与 CHANGELOG；
+> - Based on tonyzdev/dsh-session-messaging v0.3.2 (MIT, by tonyzdev). Independent version line from 0.1.0.
 
 ---
 
