@@ -7,6 +7,19 @@
 
 ---
 
+## 本 fork 的功能改进
+
+### 1. `session_send_message` 支持子代理（`agent_id`）
+
+- 原来只能给**顶层会话**发消息；现在还可以传 `agent_id`，把消息投递给**子代理**——你启动的子级，或你作为可继续子级时的直接父级。
+- 走宿主 `ctx.subagents.sendMessage()`（与内置 `send_message` 同一个 seam），投递语义一致：工作中的目标在最近步骤边界收到，空闲目标被唤醒并开始一轮。
+- **Team 成员仍请用内置 `send_message`**：团队成员不是子代理子级，这条通路不覆盖它们，这是宿主的结构限制，不是缺省。
+- 宿主没有挂载 subagent 服务时会**明确报错**，不会静默丢消息。
+
+### 2. 测试
+
+`npm test`（`node --test test/*.test.js`）共 **24 项**：会话投递、开新会话、拒绝路径、列表过滤、对子代理隐藏工具、来源说明解析，以及新增的两条 `agent_id` 用例。
+
 <div align="center">
 
 <img src="icon.svg" width="88" alt="">
