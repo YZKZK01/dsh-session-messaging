@@ -1,7 +1,7 @@
 {
   "name": "@zlzlk/dsh-session-messaging",
   "description": "基于 tonyzdev/dsh-session-messaging v0.3.2（MIT，作者 tonyzdev）的发布分支：顶层会话之间互相发消息、开新会话交代任务",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "tonyzdev",
   "license": "MIT",
   "icon": "./icon.svg",
