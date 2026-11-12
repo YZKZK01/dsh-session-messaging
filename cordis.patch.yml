@@ -5,7 +5,7 @@
 #   createLimit      new sessions one session may open with session_create per Harness run
 - insert:
     - id: session-messaging
-      name: '@zlzlk/dsh-session-messaging'
+      name: '@tonyzdev/dsh-session-messaging'
       config:
         crossWorkspace: true
         maxMessageBytes: 65536

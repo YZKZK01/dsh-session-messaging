@@ -1,7 +1,7 @@
 {
   "name": "@zlzlk/dsh-session-messaging",
-  "description": "基于 tonyzdev/dsh-session-messaging v0.3.2（MIT，作者 tonyzdev）的发布分支：顶层会话之间互相发消息、开新会话交代任务",
-  "version": "0.2.0",
+  "description": "Lets one top-level DSH session message another or open a new one: session_list finds sessions, session_send_message delivers an attributed message that wakes or resumes the target, session_create opens a titled session that starts with a message, and recipients can reply the same way",
+  "version": "0.3.2",
   "author": "tonyzdev",
   "license": "MIT",
   "icon": "./icon.svg",
@@ -20,11 +20,7 @@
     "lib/client.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg",
-    "README.md",
-    "README.en.md",
-    "LICENSE",
-    "COMPATIBILITY.md"
+    "icon.svg"
   ],
   "scripts": {
     "test": "node --test test/*.test.js"
@@ -57,11 +53,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YZKZK01/dsh-session-messaging.git"
+    "url": "git+https://github.com/tonyzdev/dsh-session-messaging.git"
   },
-  "homepage": "https://github.com/YZKZK01/dsh-session-messaging#readme",
+  "homepage": "https://github.com/tonyzdev/dsh-session-messaging#readme",
   "bugs": {
-    "url": "https://github.com/YZKZK01/dsh-session-messaging/issues"
+    "url": "https://github.com/tonyzdev/dsh-session-messaging/issues"
   },
   "publishConfig": {
     "access": "public"
