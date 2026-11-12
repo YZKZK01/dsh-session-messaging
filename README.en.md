@@ -57,7 +57,7 @@ https://github.com/tonyzdev/dsh-session-messaging
 ```
 
 > [!IMPORTANT]
-> Install using the full GitHub URL above — do **not** enter bare `dsh-session-messaging` (an unrelated package by another author holds that unscoped name on npm; this plugin's installed bundle name is `@tonyzdev/dsh-session-messaging`).
+> Install using the full GitHub URL above — do **not** enter bare `dsh-session-messaging` (an unrelated package by another author holds that unscoped name on npm; this plugin's installed bundle name is `@zlzlk/dsh-session-messaging`).
 
 <details>
 <summary><b>Command-line install, prebuilt tarball, or removal</b></summary>
@@ -103,7 +103,7 @@ git clone https://github.com/tonyzdev/dsh-session-messaging ~/.dsh/local-plugins
 **Removing:** uninstall it on the Plugins page, or run:
 
 ```sh
-"$DSH" plugin --profile desktop remove @tonyzdev/dsh-session-messaging
+"$DSH" plugin --profile desktop remove @zlzlk/dsh-session-messaging
 ```
 
 </details>
