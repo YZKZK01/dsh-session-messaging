@@ -57,7 +57,7 @@ https://github.com/tonyzdev/dsh-session-messaging
 ```
 
 > [!IMPORTANT]
-> 安装时请填入上面的完整 GitHub 仓库地址，**不要**输入不带前缀的 `dsh-session-messaging`（npm 上同名无前缀包由其他作者维护；本插件安装后的包名为 `@tonyzdev/dsh-session-messaging`）。
+> 安装时请填入上面的完整 GitHub 仓库地址，**不要**输入不带前缀的 `dsh-session-messaging`（npm 上同名无前缀包由其他作者维护；本插件安装后的包名为 `@zlzlk/dsh-session-messaging`）。
 
 <details>
 <summary><b>用命令行安装、离线包安装或移除</b></summary>
@@ -103,7 +103,7 @@ git clone https://github.com/tonyzdev/dsh-session-messaging ~/.dsh/local-plugins
 **移除**：在「插件」页卸载，或运行：
 
 ```sh
-"$DSH" plugin --profile desktop remove @tonyzdev/dsh-session-messaging
+"$DSH" plugin --profile desktop remove @zlzlk/dsh-session-messaging
 ```
 
 </details>
